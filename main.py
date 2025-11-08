@@ -1117,7 +1117,7 @@ class JuiceEffect:
         self.juice_img = juice_img
         self.alpha = 255  # 初始透明度
         self.scale = 1.2  # 初始缩放（增大初始大小）
-        self.duration = 25  # 持续帧数（延长持续时间）
+        self.duration = 20  # 持续帧数（延长持续时间）
         self.frame = 0
         
     def update(self):
@@ -1166,12 +1166,12 @@ class Game:
         self.max_combo = 0  # 最大连击数（记录）
         self.last_combo_milestone = 0  # 上一个达到的连击里程碑
         self.spawn_timer = 0
-        self.spawn_interval = 5  # 帧数
+        self.spawn_interval = 25  # 帧数（增加初始间隔，降低生成频率）
         self.game_over = False
         self.game_over_reason = ""  # 游戏结束原因
-        self.max_missed = 5
+        self.max_missed = 10  # 遗漏10个水果游戏结束
         self.max_bombs_hit = 3  # 最多切到3个普通炸弹
-        self.max_fruits_on_screen = 10  # 屏幕上最多同时存在水果
+        self.max_fruits_on_screen = 10  # 屏幕上最多同时存在水果（增加密度）
         self.bomb_spawn_chance = 0.2  # 20%的概率生成炸弹
         self.deadly_bomb_chance = 0.3  # 30%概率生成致命炸弹
         self.multi_fruit_chance = 0.15  # 15%概率生成多部分水果（西瓜/火龙果）
@@ -1246,8 +1246,8 @@ class Game:
             if self.spawn_timer >= self.spawn_interval:
                 self.spawn_single_fruit()
                 self.spawn_timer = 0
-                # 逐渐加快生成速度（每次减少1帧，最快30帧约1秒生成一个）
-                self.spawn_interval = max(30, self.spawn_interval - 1)
+                # 逐渐加快生成速度（每次减少1帧，最快40帧约1.3秒生成一个，降低频率）
+                self.spawn_interval = max(40, self.spawn_interval - 1)
         
         # 更新所有普通水果
         for fruit in self.fruits[:]:
@@ -1542,6 +1542,8 @@ def blade_selection_screen(cap):
     while True:
         ret, frame = cap.read()
         if not ret:
+            # 关闭选择界面窗口
+            cv2.destroyWindow('Swift-Fruit-Slice')
             return 'dao1'  # 默认返回dao1
         
         # 翻转图像
@@ -1650,6 +1652,8 @@ def blade_selection_screen(cap):
                         # 达到阈值，选择该刀光
                         if hover_timer[blade_name] >= hover_threshold:
                             print(f"✓ 已选择: {blade_name}")
+                            # 关闭选择界面窗口
+                            cv2.destroyWindow('Swift-Fruit-Slice')
                             return blade_name
                     else:
                         hover_timer[blade_name] = max(0, hover_timer[blade_name] - 2)  # 快速衰减
@@ -1660,15 +1664,21 @@ def blade_selection_screen(cap):
                 hover_timer[blade_name] = max(0, hover_timer[blade_name] - 2)
         
         # 显示窗口
-        cv2.imshow('Fruit Ninja - 体感切水果', frame)
+        cv2.imshow('Swift-Fruit-Slice', frame)
         
         # 按键控制
         key = cv2.waitKey(1) & 0xFF
         if key == ord('q'):
+            # 关闭选择界面窗口
+            cv2.destroyWindow('Swift-Fruit-Slice')
             return 'dao1'  # 默认返回dao1
         elif key == ord('1'):
+            # 关闭选择界面窗口
+            cv2.destroyWindow('Swift-Fruit-Slice')
             return 'dao1'
         elif key == ord('2'):
+            # 关闭选择界面窗口
+            cv2.destroyWindow('Swift-Fruit-Slice')
             return 'dao2'
 
 def main():
@@ -1832,7 +1842,7 @@ def main():
                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
         
         # 显示游戏窗口
-        cv2.imshow('Fruit Ninja - 体感切水果', frame)
+        cv2.imshow('Fruit Ninja', frame)
         
         # 键盘控制
         key = cv2.waitKey(1) & 0xFF
