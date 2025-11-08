@@ -468,6 +468,64 @@ def load_combo_images():
 # 加载连击特效图片（全局变量）
 COMBO_IMAGES = load_combo_images()
 
+# 加载汁水特效图片
+def load_juice_images():
+    """加载汁水特效图片"""
+    juice_images = {}
+    
+    # 获取脚本所在目录
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    texiao_dir = os.path.join(script_dir, 'texiao')
+    
+    print(f"\n正在加载汁水特效素材...")
+    print(f"特效目录: {texiao_dir}")
+    
+    # 加载4张汁水图片（橙色、绿色、粉色、红色）
+    juice_colors = ['orange', 'green', 'pink', 'red']
+    for i in range(1, 5):
+        juice_path = os.path.join(texiao_dir, f'guozhi{i}.png')
+        if os.path.exists(juice_path):
+            juice_img = cv2.imread(juice_path, cv2.IMREAD_UNCHANGED)
+            if juice_img is not None:
+                color_name = juice_colors[i-1]
+                juice_images[color_name] = juice_img
+                print(f"  ✓ 已加载: {color_name}汁水 (guozhi{i}.png)")
+    
+    if not juice_images:
+        print(f"  ✗ 未找到汁水特效图片")
+    
+    return juice_images
+
+# 加载汁水特效图片（全局变量）
+JUICE_IMAGES = load_juice_images()
+
+# 水果类型到果汁颜色的映射
+def get_juice_color_for_fruit(fruit_type):
+    """根据水果类型返回对应的果汁颜色"""
+    # 水果类型到果汁颜色的映射
+    fruit_juice_map = {
+        'banana': 'orange',      # 香蕉 -> 橙色
+        'boluo': 'orange',       # 菠萝 -> 橙色
+        'iceBanana': 'green',    # 冰香蕉 -> 绿色
+        'Mango': 'orange',       # 芒果 -> 橙色
+        'mugua': 'orange',       # 木瓜 -> 橙色
+        'peach': 'pink',         # 桃子 -> 粉色
+        'pear': 'green',         # 梨 -> 绿色
+        'pineapple': 'orange',   # 菠萝 -> 橙色
+        'strawberry': 'red',     # 草莓 -> 红色
+        'watermelon': 'red',     # 西瓜 -> 红色
+        'dragonfruit': 'pink',   # 火龙果 -> 粉色
+        'b1': 'orange',          # 默认 -> 橙色
+    }
+    
+    # 获取对应的果汁颜色，如果没有映射则随机选择
+    juice_color = fruit_juice_map.get(fruit_type)
+    if juice_color and juice_color in JUICE_IMAGES:
+        return juice_color
+    else:
+        # 如果映射不存在或图片未加载，随机选择
+        return random.choice(list(JUICE_IMAGES.keys())) if JUICE_IMAGES else None
+
 # 加载音效
 def load_sound_effects():
     """加载游戏音效"""
@@ -1025,7 +1083,7 @@ class SlashEffect:
         self.angle = angle
         self.alpha = 255  # 初始透明度
         self.scale = 1.2  # 初始缩放
-        self.duration = 15  # 持续帧数
+        self.duration = 20  # 持续帧数
         self.frame = 0
         
     def update(self):
@@ -1051,6 +1109,46 @@ class SlashEffect:
         alpha = self.alpha / 255.0
         overlay_image(frame, scaled_blade, int(self.x), int(self.y), self.angle, alpha)
 
+# 汁水特效类
+class JuiceEffect:
+    def __init__(self, x, y, juice_img):
+        self.x = x
+        self.y = y
+        self.juice_img = juice_img
+        self.alpha = 255  # 初始透明度
+        self.scale = 1.2  # 初始缩放（增大初始大小）
+        self.duration = 25  # 持续帧数（延长持续时间）
+        self.frame = 0
+        
+    def update(self):
+        self.frame += 1
+        # 逐渐淡出并放大（保持更长时间的高透明度）
+        if self.frame < self.duration * 0.6:  # 前60%时间保持高透明度
+            self.alpha = 255
+        else:
+            # 后40%时间逐渐淡出
+            fade_progress = (self.frame - self.duration * 0.6) / (self.duration * 0.4)
+            self.alpha = int(255 * (1 - fade_progress))
+        # 从1.2放大到2.0（增大缩放范围）
+        self.scale = 1.2 + (self.frame / self.duration) * 0.8
+        
+    def is_finished(self):
+        return self.frame >= self.duration
+    
+    def draw(self, frame):
+        if self.juice_img is None:
+            return
+        
+        # 缩放汁水图片
+        h, w = self.juice_img.shape[:2]
+        new_w = int(w * self.scale)
+        new_h = int(h * self.scale)
+        scaled_juice = cv2.resize(self.juice_img, (new_w, new_h))
+        
+        # 绘制汁水（确保alpha在0-255范围内）
+        alpha = min(255, max(0, self.alpha)) / 255.0
+        overlay_image(frame, scaled_juice, int(self.x), int(self.y), 0, alpha)
+
 # 游戏管理类
 class Game:
     def __init__(self, selected_blade='dao1'):
@@ -1059,6 +1157,7 @@ class Game:
         self.bombs = []  # 炸弹列表
         self.slash_effects = []  # 刀光特效列表
         self.combo_effects = []  # 连击特效列表
+        self.juice_effects = []  # 汁水特效列表
         self.selected_blade = selected_blade  # 选中的刀光
         self.score = 0
         self.missed = 0
@@ -1203,6 +1302,12 @@ class Game:
             effect.update()
             if effect.is_finished():
                 self.combo_effects.remove(effect)
+        
+        # 更新汁水特效
+        for effect in self.juice_effects[:]:
+            effect.update()
+            if effect.is_finished():
+                self.juice_effects.remove(effect)
                 
     def check_collisions(self, trail_points):
         """检查碰撞"""
@@ -1226,6 +1331,12 @@ class Game:
                 fruit_hit = True
                 # 添加刀光特效
                 self.slash_effects.append(SlashEffect(fruit.x, fruit.y, cut_angle))
+                # 添加汁水特效（根据水果类型选择对应颜色）
+                if JUICE_IMAGES:
+                    juice_color = get_juice_color_for_fruit(fruit.fruit_type)
+                    if juice_color:
+                        juice_img = JUICE_IMAGES[juice_color]
+                        self.juice_effects.append(JuiceEffect(fruit.x, fruit.y, juice_img))
                 # 播放切水果音效
                 if HAS_SOUND and 'slice' in SOUND_EFFECTS:
                     SOUND_EFFECTS['slice'].play()
@@ -1238,6 +1349,12 @@ class Game:
                 fruit_hit = True
                 # 添加刀光特效
                 self.slash_effects.append(SlashEffect(fruit.x, fruit.y, cut_angle))
+                # 添加汁水特效（根据水果类型选择对应颜色）
+                if JUICE_IMAGES:
+                    juice_color = get_juice_color_for_fruit(fruit.fruit_type)
+                    if juice_color:
+                        juice_img = JUICE_IMAGES[juice_color]
+                        self.juice_effects.append(JuiceEffect(fruit.x, fruit.y, juice_img))
                 # 播放切水果音效
                 if HAS_SOUND and 'slice' in SOUND_EFFECTS:
                     SOUND_EFFECTS['slice'].play()
@@ -1313,6 +1430,10 @@ class Game:
         
         # 绘制连击特效
         for effect in self.combo_effects:
+            effect.draw(frame)
+        
+        # 绘制汁水特效
+        for effect in self.juice_effects:
             effect.draw(frame)
             
         # 绘制分数和状态
@@ -1568,7 +1689,7 @@ def main():
     print(f"\n✓ 使用刀光: {selected_blade}")
     
     # 手指轨迹队列（用于绘制刀光）- 30个点，适中的轨迹长度
-    trail_points = deque(maxlen=30)
+    trail_points = deque(maxlen=15)
     
     # 创建坐标平滑器 - 你可以切换不同的方法
     # 方法选项: 'ewma' (推荐), 'moving_avg', 'kalman'
